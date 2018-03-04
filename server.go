@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -91,11 +92,34 @@ func (a *Application) Serve() {
 	port := a.config.Unmarshal
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		a.logger.Fatalf("failed to listen: %v", err)
+		a.logger.WithError(err).Fatalln("failed to listen")
 	}
 	go func() {
 		if err = a.grpcServer.Serve(lis); err != nil {
 			a.logger.Fatalln(err)
+		}
+	}()
+	go func() {
+		podWatcher, err := a.KubeClient.CoreV1().Pods("").Watch(metav1.ListOptions{})
+		if err != nil {
+			a.logger.WithError(err).Fatalln()
+		}
+		for event := range podWatcher.ResultChan() {
+			a.logger.WithField("event", event.Type).Infof("pod event received")
+			// pod := event.Object.(*v1.Pod)
+			// endpoint := endpoint.Endpoint{
+			// 	Address: &core.Address{
+			// 		Address: &core.Address_SocketAddress{
+			// 			SocketAddress: &core.SocketAddress{
+			// 				Protocol: core.TCP,
+			// 				Address:  pod.Status.PodIP,
+			// 				PortSpecifier: &core.SocketAddress_PortValue{
+			// 					PortValue: 5000,
+			// 				},
+			// 			},
+			// 		},
+			// 	},
+			// }
 		}
 	}()
 	<-a.ctx.Done()
