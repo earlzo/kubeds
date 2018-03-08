@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	"github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/api/core/v1"
 )
 
 // Hasher is a single cache key hash.
@@ -100,28 +102,69 @@ func (a *Application) Serve() {
 		}
 	}()
 	go func() {
-		podWatcher, err := a.KubeClient.CoreV1().Pods("").Watch(metav1.ListOptions{})
+		endWatcher, err := a.KubeClient.CoreV1().Endpoints("").Watch(metav1.ListOptions{})
 		if err != nil {
 			a.logger.WithError(err).Fatalln()
 		}
-		for event := range podWatcher.ResultChan() {
-			a.logger.WithField("event", event.Type).Infof("pod event received")
-			// pod := event.Object.(*v1.Pod)
-			// endpoint := endpoint.Endpoint{
-			// 	Address: &core.Address{
-			// 		Address: &core.Address_SocketAddress{
-			// 			SocketAddress: &core.SocketAddress{
-			// 				Protocol: core.TCP,
-			// 				Address:  pod.Status.PodIP,
-			// 				PortSpecifier: &core.SocketAddress_PortValue{
-			// 					PortValue: 5000,
-			// 				},
-			// 			},
-			// 		},
-			// 	},
-			// }
+		for event := range endWatcher.ResultChan() {
+			a.logger.WithField("event", event.Type).Infof("endpoint event received")
+			endpoints := event.Object.(*v1.Endpoints)
+
+			envoy_endpoint := endpoint.Endpoint{
+				Address: &core.Address{
+					Address: &core.Address_SocketAddress{
+						SocketAddress: &core.SocketAddress{
+							Protocol: core.TCP,
+							Address:  pod.Stat,
+							PortSpecifier: &core.SocketAddress_PortValue{
+								PortValue: 5000,
+							},
+						},
+					},
+				},
+			}
 		}
 	}()
 	<-a.ctx.Done()
 	a.grpcServer.GracefulStop()
+}
+
+func Endpoints2ClusterLoadAssignment(endpoints *v1.Endpoints) *v2.ClusterLoadAssignment {
+	clusterName := endpoints.ObjectMeta.Name + "." + endpoints.ObjectMeta.Namespace
+	LbEndpoints := make([]endpoint.LbEndpoint, 0)
+	for _, subset := range endpoints.Subsets {
+		for _, port := range subset.Ports {
+			for _, address := range subset.Addresses {
+				var protocol core.SocketAddress_Protocol
+				if port.Protocol == v1.ProtocolTCP{
+					protocol = core.TCP
+				} else {
+					protocol = core.UDP
+				}
+
+				LbEndpoints = append(LbEndpoints, endpoint.LbEndpoint{
+					Endpoint: &endpoint.Endpoint{
+						Address: &core.Address{
+							Address: &core.Address_SocketAddress{
+								SocketAddress: &core.SocketAddress{
+									Protocol: protocol,
+									Address:  address.IP,
+									PortSpecifier: &core.SocketAddress_PortValue{
+										PortValue: uint32(port.Port),
+									},
+								},
+							},
+						},
+					},
+				})
+			}
+		}
+	}
+
+	return &v2.ClusterLoadAssignment{
+		ClusterName: clusterName,
+		Endpoints: []endpoint.LocalityLbEndpoints{{
+			LbEndpoints: LbEndpoints,
+		}},
+	}
 }

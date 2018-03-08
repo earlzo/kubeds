@@ -1,0 +1,189 @@
+{
+  "metadata": {
+    "selfLink": "/api/v1/namespaces/douya/endpoints",
+    "resourceVersion": "11961059"
+  },
+  "items": [
+    {
+      "metadata": {
+        "name": "fairy-api",
+        "namespace": "douya",
+        "selfLink": "/api/v1/namespaces/douya/endpoints/fairy-api",
+        "uid": "9a14e857-019d-11e8-8644-00163e04ab00",
+        "resourceVersion": "11589052",
+        "creationTimestamp": "2018-01-25T07:01:44Z"
+      },
+      "subsets": [
+        {
+          "addresses": [
+            {
+              "ip": "172.16.6.90",
+              "nodeName": "cn-shanghai.i-uf6ihaxtuoo0ukui4g5q",
+              "targetRef": {
+                "kind": "Pod",
+                "namespace": "douya",
+                "name": "fairy-api-854487bd8f-gxzwl",
+                "uid": "c6151dbf-210e-11e8-8162-00163e100620",
+                "resourceVersion": "11589045"
+              }
+            }
+          ],
+          "ports": [
+            {
+              "name": "http",
+              "port": 5000,
+              "protocol": "TCP"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "metadata": {
+        "name": "fairy-rpc",
+        "namespace": "douya",
+        "selfLink": "/api/v1/namespaces/douya/endpoints/fairy-rpc",
+        "uid": "cab2bb38-f9c1-11e7-acb9-00163e100027",
+        "resourceVersion": "11934889",
+        "creationTimestamp": "2018-01-15T07:00:38Z"
+      },
+      "subsets": [
+        {
+          "addresses": [
+            {
+              "ip": "172.16.6.153",
+              "nodeName": "cn-shanghai.i-uf6ihaxtuoo0ukui4g5q",
+              "targetRef": {
+                "kind": "Pod",
+                "namespace": "douya",
+                "name": "fairy-rpc-75d6d4d9fc-hx777",
+                "uid": "5315eb75-2281-11e8-8162-00163e100620",
+                "resourceVersion": "11934881"
+              }
+            }
+          ],
+          "ports": [
+            {
+              "name": "grpc",
+              "port": 6000,
+              "protocol": "TCP"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "metadata": {
+        "name": "fairy-webadm",
+        "namespace": "douya",
+        "selfLink": "/api/v1/namespaces/douya/endpoints/fairy-webadm",
+        "uid": "8d43fdf8-0589-11e8-b516-00163e100620",
+        "resourceVersion": "11777460",
+        "creationTimestamp": "2018-01-30T06:48:17Z"
+      },
+      "subsets": [
+        {
+          "addresses": [
+            {
+              "ip": "172.16.6.112",
+              "nodeName": "cn-shanghai.i-uf6ihaxtuoo0ukui4g5q",
+              "targetRef": {
+                "kind": "Pod",
+                "namespace": "douya",
+                "name": "fairy-webadm-5ccc4ff857-cm8sj",
+                "uid": "1d6b835a-21d9-11e8-8162-00163e100620",
+                "resourceVersion": "11777454"
+              }
+            }
+          ],
+          "ports": [
+            {
+              "name": "http",
+              "port": 5000,
+              "protocol": "TCP"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "metadata": {
+        "name": "fennec-api",
+        "namespace": "douya",
+        "selfLink": "/api/v1/namespaces/douya/endpoints/fennec-api",
+        "uid": "23661e2f-21ec-11e8-8162-00163e100620",
+        "resourceVersion": "11960236",
+        "creationTimestamp": "2018-03-07T09:44:32Z"
+      },
+      "subsets": [
+        {
+          "addresses": [
+            {
+              "ip": "172.16.4.113",
+              "nodeName": "cn-shanghai.i-uf66kqjv3d5k23lvm7on",
+              "targetRef": {
+                "kind": "Pod",
+                "namespace": "douya",
+                "name": "fennec-api-7d4b856d67-85htz",
+                "uid": "7a5d9704-229b-11e8-8162-00163e100620",
+                "resourceVersion": "11960235"
+              }
+            },
+            {
+              "ip": "172.16.6.165",
+              "nodeName": "cn-shanghai.i-uf6ihaxtuoo0ukui4g5q",
+              "targetRef": {
+                "kind": "Pod",
+                "namespace": "douya",
+                "name": "fennec-api-7d4b856d67-vwctn",
+                "uid": "6e2f641e-2298-11e8-8162-00163e100620",
+                "resourceVersion": "11957126"
+              }
+            }
+          ],
+          "ports": [
+            {
+              "name": "http",
+              "port": 5000,
+              "protocol": "TCP"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "metadata": {
+        "name": "fennec-rpc",
+        "namespace": "douya",
+        "selfLink": "/api/v1/namespaces/douya/endpoints/fennec-rpc",
+        "uid": "2352982d-21ec-11e8-8162-00163e100620",
+        "resourceVersion": "11952595",
+        "creationTimestamp": "2018-03-07T09:44:32Z"
+      },
+      "subsets": [
+        {
+          "addresses": [
+            {
+              "ip": "172.16.6.159",
+              "nodeName": "cn-shanghai.i-uf6ihaxtuoo0ukui4g5q",
+              "targetRef": {
+                "kind": "Pod",
+                "namespace": "douya",
+                "name": "fennec-rpc-5dccfd56d9-42sg2",
+                "uid": "db4462ff-2293-11e8-8162-00163e100620",
+                "resourceVersion": "11952587"
+              }
+            }
+          ],
+          "ports": [
+            {
+              "name": "grpc",
+              "port": 6000,
+              "protocol": "TCP"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
