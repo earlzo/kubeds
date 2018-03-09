@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/mitchellh/go-homedir"
+	"github.com/shanbay/leizu"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -15,9 +15,11 @@ var cfgFile string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "leizu",
-	Short: "A envoy api implemention for kubernetes",
+	Short: "A envoy api implementation for kubernetes",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
+		app:=leizu.InitApplication(viper.GetViper())
+		app.Serve()
 	},
 }
 
@@ -33,21 +35,23 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.Flags().BoolP("out-cluster", "o", false, "using out cluster kubeconfig")
-	viper.BindPFlag("OutCluster", rootCmd.Flags().Lookup("out-cluster"))
+	rootCmd.Flags().BoolP("out-cluster", "o", viper.GetBool("outCluster"), "using out cluster kubeconfig")
+	viper.BindPFlag("outCluster", rootCmd.Flags().Lookup("out-cluster"))
 
-	home, err := homedir.Dir()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	defaultKubeConfig := filepath.Join(home, ".kube", "config")
-	rootCmd.Flags().StringP("kubeconfig", "k", defaultKubeConfig, "absolute path to the kubeconfig file")
-	viper.BindPFlag("KubeConfigPath", rootCmd.Flags().Lookup("kubeconfig"))
+	rootCmd.Flags().StringP("kubeconfig", "k", viper.GetString("kubeConfigPath"), "absolute path to the kubeconfig file")
+	viper.BindPFlag("kubeConfigPath", rootCmd.Flags().Lookup("kubeconfig"))
+
+	rootCmd.Flags().StringP("namespace", "n", viper.GetString("nameSpace"), "namespace to listen")
+	viper.BindPFlag("nameSpace", rootCmd.Flags().Lookup("namespace"))
+
+	rootCmd.Flags().StringP("address", "a", viper.GetString("grpcServerAddress"), "address for grpc server")
+	viper.BindPFlag("grpcServerAddress", rootCmd.Flags().Lookup("address"))
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	leizu.LoadDefaultSettingsFor(viper.GetViper())
+
 	// Find home directory.
 	home, err := homedir.Dir()
 	if err != nil {
