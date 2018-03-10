@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/shanbay/leizu"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"k8s.io/client-go/util/homedir"
 )
 
 var cfgFile string
@@ -18,7 +18,7 @@ var rootCmd = &cobra.Command{
 	Short: "A envoy api implementation for kubernetes",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		app:=leizu.InitApplication(viper.GetViper())
+		app := leizu.InitApplication(viper.GetViper())
 		app.Serve()
 	},
 }
@@ -53,11 +53,7 @@ func initConfig() {
 	leizu.LoadDefaultSettingsFor(viper.GetViper())
 
 	// Find home directory.
-	home, err := homedir.Dir()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	home := homedir.HomeDir()
 
 	if cfgFile != "" {
 		// Use config file from the flag.

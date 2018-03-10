@@ -6,15 +6,15 @@ import (
 	"sync"
 
 	envoyApiV2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	envoyApiV2Core2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	envoyApiV2Core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
-	"k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sApiV1Core "k8s.io/api/core/v1"
+	k8sApiMetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -29,7 +29,7 @@ type Hasher struct {
 }
 
 // ID function that always returns the same value.
-func (h Hasher) ID(node *envoyApiV2Core2.Node) string {
+func (h Hasher) ID(node *envoyApiV2Core.Node) string {
 	return nodeID
 }
 
@@ -119,23 +119,23 @@ func (a *Application) WatchEndpoints() {
 	// 初次监听会返回当前的状态
 	// Endpoints 属于一个资源, 每次更新会带上当前所有的 endpoint, 例如当某个部署副本由 1 调整到 3 则会收到两次 MODIFIED 事件
 	nameSpace := a.config.GetString("nameSpace")
-	endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(metaV1.ListOptions{})
+	endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(k8sApiMetaV1.ListOptions{})
 	if err != nil {
 		a.logger.WithError(err).Fatalln("watch endpoints changes failed")
 	}
 	a.logger.Infoln("start watching Endpoints events")
 	for event := range endWatcher.ResultChan() {
 		a.logger.WithField("event", event.Type).Infoln("endpoints event received")
-		var healthStatus envoyApiV2Core2.HealthStatus
+		var healthStatus envoyApiV2Core.HealthStatus
 		switch event.Type {
 		case watch.Added, watch.Modified:
-			healthStatus = envoyApiV2Core2.HealthStatus_HEALTHY
+			healthStatus = envoyApiV2Core.HealthStatus_HEALTHY
 		case watch.Deleted, watch.Error:
-			healthStatus = envoyApiV2Core2.HealthStatus_UNHEALTHY
+			healthStatus = envoyApiV2Core.HealthStatus_UNHEALTHY
 		default:
-			healthStatus = envoyApiV2Core2.HealthStatus_UNKNOWN
+			healthStatus = envoyApiV2Core.HealthStatus_UNKNOWN
 		}
-		endpoints := event.Object.(*v1.Endpoints)
+		endpoints := event.Object.(*k8sApiV1Core.Endpoints)
 		envoyEndpoints := a.Endpoints2ClusterLoadAssignment(endpoints, healthStatus)
 		snapShot := cache.NewSnapshot(
 			endpoints.ResourceVersion,
@@ -159,7 +159,7 @@ func (a *Application) Serve() {
 	a.grpcServer.GracefulStop()
 }
 
-func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *v1.Endpoints, healthStatus envoyApiV2Core2.HealthStatus) *envoyApiV2.ClusterLoadAssignment {
+func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *k8sApiV1Core.Endpoints, healthStatus envoyApiV2Core.HealthStatus) *envoyApiV2.ClusterLoadAssignment {
 	// clusterName format is "svcName.Namespace"
 	clusterName := endpoints.ObjectMeta.Name + "." + endpoints.ObjectMeta.Namespace
 
@@ -167,22 +167,22 @@ func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *v1.Endpoints, h
 	for _, subset := range endpoints.Subsets {
 		for _, port := range subset.Ports {
 			for _, address := range subset.Addresses {
-				var protocol envoyApiV2Core2.SocketAddress_Protocol
+				var protocol envoyApiV2Core.SocketAddress_Protocol
 				switch port.Protocol {
-				case v1.ProtocolTCP:
-					protocol = envoyApiV2Core2.TCP
-				case v1.ProtocolUDP:
-					protocol = envoyApiV2Core2.UDP
+				case k8sApiV1Core.ProtocolTCP:
+					protocol = envoyApiV2Core.TCP
+				case k8sApiV1Core.ProtocolUDP:
+					protocol = envoyApiV2Core.UDP
 				}
 				lbEndpoints = append(lbEndpoints, endpoint.LbEndpoint{
 					HealthStatus: healthStatus,
 					Endpoint: &endpoint.Endpoint{
-						Address: &envoyApiV2Core2.Address{
-							Address: &envoyApiV2Core2.Address_SocketAddress{
-								SocketAddress: &envoyApiV2Core2.SocketAddress{
+						Address: &envoyApiV2Core.Address{
+							Address: &envoyApiV2Core.Address_SocketAddress{
+								SocketAddress: &envoyApiV2Core.SocketAddress{
 									Protocol: protocol,
 									Address:  address.IP,
-									PortSpecifier: &envoyApiV2Core2.SocketAddress_PortValue{
+									PortSpecifier: &envoyApiV2Core.SocketAddress_PortValue{
 										PortValue: uint32(port.Port),
 									},
 								},
