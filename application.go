@@ -2,12 +2,11 @@ package leizu
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 
-	"github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	envoy_api_v2_core2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
+	envoyApiV2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
+	envoyApiV2Core2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	xds "github.com/envoyproxy/go-control-plane/pkg/server"
@@ -15,20 +14,23 @@ import (
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// TODO: currently we only support XDS for one envoy nodeID
+const nodeID = "defaultEnvoyNode"
+
 // Hasher is a single cache key hash.
 type Hasher struct {
 }
 
 // ID function that always returns the same value.
-func (h Hasher) ID(node *envoy_api_v2_core2.Node) string {
-	return node.Id
+func (h Hasher) ID(node *envoyApiV2Core2.Node) string {
+	return nodeID
 }
 
 var (
@@ -46,13 +48,16 @@ func InitApplication(config *viper.Viper) *Application {
 			ctx:    context.Background(),
 			config: config,
 		}
-
-		// init snapCache
+		app.logger.Formatter = &logrus.TextFormatter{
+			ForceColors:   true,
+			FullTimestamp: true,
+		}
+		// init snapshotCache
 		app.cache = cache.NewSnapshotCache(true, Hasher{}, app.logger)
 		app.server = xds.NewServer(app.cache, nil)
 		app.grpcServer = grpc.NewServer()
 
-		v2.RegisterEndpointDiscoveryServiceServer(app.grpcServer, app.server)
+		envoyApiV2.RegisterEndpointDiscoveryServiceServer(app.grpcServer, app.server)
 
 		// init client
 		var (
@@ -61,7 +66,7 @@ func InitApplication(config *viper.Viper) *Application {
 		)
 		if viper.GetBool("outCluster") {
 			kubeConfigPath := viper.GetString("kubeConfigPath")
-			fmt.Printf("using out cluster config: %s", kubeConfigPath)
+			app.logger.WithField("kubeConfigPath", kubeConfigPath).Infoln("using out cluster config")
 			kubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 			if err != nil {
 				app.logger.WithError(err).Fatalln("load config failed")
@@ -73,8 +78,8 @@ func InitApplication(config *viper.Viper) *Application {
 			}
 		}
 		app.logger.WithFields(logrus.Fields{
-			"host": kubeConfig.Host,
-			"username": kubeConfig.Username,
+			"host":      kubeConfig.Host,
+			"username":  kubeConfig.Username,
 			"userAgent": kubeConfig.UserAgent,
 		}).Infoln("k8s config was loaded")
 		clientset, err := kubernetes.NewForConfig(kubeConfig)
@@ -98,81 +103,86 @@ type Application struct {
 	KubeClient *kubernetes.Clientset
 }
 
-func (a *Application) Serve() {
-	go func() {
-		addr := a.config.GetString("grpcServerAddress")
-		lis, err := net.Listen("tcp", addr)
-		if err != nil {
-			a.logger.WithError(err).Fatalln("failed to listen")
+func (a *Application) RunXds() {
+	addr := a.config.GetString("grpcServerAddress")
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		a.logger.WithError(err).Fatalln("failed to listen")
+	}
+	a.logger.WithField("grpcServerAddress", addr).Infoln("start listening grpc")
+	if err = a.grpcServer.Serve(lis); err != nil {
+		a.logger.WithError(err).Fatalln("serve grpc server failed")
+	}
+}
+func (a *Application) WatchEndpoints() {
+	// watch k8s cluster endpoints, and set set snapshot after changes
+	// 初次监听会返回当前的状态
+	// Endpoints 属于一个资源, 每次更新会带上当前所有的 endpoint, 例如当某个部署副本由 1 调整到 3 则会收到两次 MODIFIED 事件
+	nameSpace := a.config.GetString("nameSpace")
+	endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(metaV1.ListOptions{})
+	if err != nil {
+		a.logger.WithError(err).Fatalln("watch endpoints changes failed")
+	}
+	a.logger.Infoln("start watching Endpoints events")
+	for event := range endWatcher.ResultChan() {
+		a.logger.WithField("event", event.Type).Infoln("endpoints event received")
+		var healthStatus envoyApiV2Core2.HealthStatus
+		switch event.Type {
+		case watch.Added, watch.Modified:
+			healthStatus = envoyApiV2Core2.HealthStatus_HEALTHY
+		case watch.Deleted, watch.Error:
+			healthStatus = envoyApiV2Core2.HealthStatus_UNHEALTHY
+		default:
+			healthStatus = envoyApiV2Core2.HealthStatus_UNKNOWN
 		}
-		a.logger.WithField("grpcServerAddress", addr).Infoln("start listening grpc")
-		if err = a.grpcServer.Serve(lis); err != nil {
-			a.logger.WithError(err).Fatalln("serve grpc server failed")
+		endpoints := event.Object.(*v1.Endpoints)
+		envoyEndpoints := a.Endpoints2ClusterLoadAssignment(endpoints, healthStatus)
+		snapShot := cache.NewSnapshot(
+			endpoints.ResourceVersion,
+			[]cache.Resource{envoyEndpoints},
+			[]cache.Resource{},
+			[]cache.Resource{},
+			[]cache.Resource{},
+		)
+		// TODO: dispatch Node
+		if err := a.cache.SetSnapshot(nodeID, snapShot); err != nil {
+			a.logger.WithError(err).Errorln("SetSnapshot failed ")
 		}
-	}()
+		a.logger.WithField("version", endpoints.ResourceVersion).Infoln("set new snapshot")
+	}
+}
 
-	go func() {
-		// watch k8s cluster endpoints, and set set snapshot after changes
-		nameSpace := a.config.GetString("nameSpace")
-		endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(metav1.ListOptions{})
-		if err != nil {
-			a.logger.WithError(err).Fatalln("watch endpoints changes failed")
-		}
-		a.logger.Infoln("start watching Endpoints events")
-		for event := range endWatcher.ResultChan() {
-			a.logger.WithField("event", event.Type).Infoln("endpoints event received")
-			var healthStatus envoy_api_v2_core2.HealthStatus
-			switch event.Type {
-			case watch.Added, watch.Modified:
-				healthStatus = envoy_api_v2_core2.HealthStatus_HEALTHY
-			case watch.Deleted, watch.Error:
-				healthStatus = envoy_api_v2_core2.HealthStatus_UNHEALTHY
-			default:
-				healthStatus = envoy_api_v2_core2.HealthStatus_UNKNOWN
-			}
-			endpoints := event.Object.(*v1.Endpoints)
-			envoyEndpoints := a.Endpoints2ClusterLoadAssignment(endpoints, healthStatus)
-			snapShot := cache.NewSnapshot(
-				endpoints.ResourceVersion,
-				[]cache.Resource{envoyEndpoints},
-				[]cache.Resource{},
-				[]cache.Resource{},
-				[]cache.Resource{},
-			)
-			// TODO: dispatch Node
-			if err := a.cache.SetSnapshot("", snapShot); err != nil {
-				a.logger.WithError(err).Errorln("SetSnapshot failed ")
-			}
-			a.logger.WithField("version", endpoints.ResourceVersion).Infoln("set new snapshot")
-		}
-	}()
+func (a *Application) Serve() {
+	go a.RunXds()
+	go a.WatchEndpoints()
 	<-a.ctx.Done()
 	a.grpcServer.GracefulStop()
 }
 
-func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *v1.Endpoints, healthStatus envoy_api_v2_core2.HealthStatus) *v2.ClusterLoadAssignment {
+func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *v1.Endpoints, healthStatus envoyApiV2Core2.HealthStatus) *envoyApiV2.ClusterLoadAssignment {
+	// clusterName format is "svcName.Namespace"
 	clusterName := endpoints.ObjectMeta.Name + "." + endpoints.ObjectMeta.Namespace
 
 	lbEndpoints := make([]endpoint.LbEndpoint, 0)
 	for _, subset := range endpoints.Subsets {
 		for _, port := range subset.Ports {
 			for _, address := range subset.Addresses {
-				var protocol envoy_api_v2_core2.SocketAddress_Protocol
+				var protocol envoyApiV2Core2.SocketAddress_Protocol
 				switch port.Protocol {
 				case v1.ProtocolTCP:
-					protocol = envoy_api_v2_core2.TCP
+					protocol = envoyApiV2Core2.TCP
 				case v1.ProtocolUDP:
-					protocol = envoy_api_v2_core2.UDP
+					protocol = envoyApiV2Core2.UDP
 				}
 				lbEndpoints = append(lbEndpoints, endpoint.LbEndpoint{
 					HealthStatus: healthStatus,
 					Endpoint: &endpoint.Endpoint{
-						Address: &envoy_api_v2_core2.Address{
-							Address: &envoy_api_v2_core2.Address_SocketAddress{
-								SocketAddress: &envoy_api_v2_core2.SocketAddress{
+						Address: &envoyApiV2Core2.Address{
+							Address: &envoyApiV2Core2.Address_SocketAddress{
+								SocketAddress: &envoyApiV2Core2.SocketAddress{
 									Protocol: protocol,
 									Address:  address.IP,
-									PortSpecifier: &envoy_api_v2_core2.SocketAddress_PortValue{
+									PortSpecifier: &envoyApiV2Core2.SocketAddress_PortValue{
 										PortValue: uint32(port.Port),
 									},
 								},
@@ -189,7 +199,7 @@ func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *v1.Endpoints, h
 		"healthStatus":     healthStatus,
 		"lbEndPointsCount": len(lbEndpoints),
 	}).Infoln("converted k8s endpoints to envoy cluster load assignment")
-	return &v2.ClusterLoadAssignment{
+	return &envoyApiV2.ClusterLoadAssignment{
 		ClusterName: clusterName,
 		Endpoints: []endpoint.LocalityLbEndpoints{{
 			LbEndpoints: lbEndpoints,
