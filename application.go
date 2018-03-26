@@ -38,6 +38,40 @@ var (
 	app  *Application
 )
 
+func SimpleKubeClient(config *viper.Viper) (*kubernetes.Clientset, error) {
+	if config == nil {
+		config = viper.GetViper()
+	}
+	var (
+		kubeConfig *rest.Config
+		err        error
+	)
+	if viper.GetBool("outCluster") {
+		kubeConfigPath := viper.GetString("kubeConfigPath")
+		logrus.WithField("kubeConfigPath", kubeConfigPath).Infoln("using out cluster config")
+		kubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+		if err != nil {
+			logrus.WithError(err).Fatalln("load config failed")
+		}
+	} else {
+		kubeConfig, err = rest.InClusterConfig()
+		if err != nil {
+			logrus.WithError(err).Fatalln("load config failed")
+		}
+	}
+	logrus.WithFields(logrus.Fields{
+		"host":      kubeConfig.Host,
+		"username":  kubeConfig.Username,
+		"userAgent": kubeConfig.UserAgent,
+	}).Infoln("k8s config was loaded")
+	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		logrus.WithError(err).Fatalln("make k8s client failed")
+		return nil, err
+	}
+	return kubeClient, nil
+}
+
 func InitApplication(config *viper.Viper) *Application {
 	once.Do(func() {
 		if config == nil {
@@ -59,35 +93,11 @@ func InitApplication(config *viper.Viper) *Application {
 
 		envoyApiV2.RegisterEndpointDiscoveryServiceServer(app.grpcServer, app.server)
 
-		// init client
-		var (
-			kubeConfig *rest.Config
-			err        error
-		)
-		if viper.GetBool("outCluster") {
-			kubeConfigPath := viper.GetString("kubeConfigPath")
-			app.logger.WithField("kubeConfigPath", kubeConfigPath).Infoln("using out cluster config")
-			kubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
-			if err != nil {
-				app.logger.WithError(err).Fatalln("load config failed")
-			}
-		} else {
-			kubeConfig, err = rest.InClusterConfig()
-			if err != nil {
-				app.logger.WithError(err).Fatalln("load config failed")
-			}
-		}
-		app.logger.WithFields(logrus.Fields{
-			"host":      kubeConfig.Host,
-			"username":  kubeConfig.Username,
-			"userAgent": kubeConfig.UserAgent,
-		}).Infoln("k8s config was loaded")
-		clientset, err := kubernetes.NewForConfig(kubeConfig)
+		kubeClient, err := SimpleKubeClient(config)
 		if err != nil {
-			app.logger.WithError(err).Fatalln("make k8s client failed")
+			app.logger.WithError(err).Fatalln("get kube client failed")
 		}
-		app.KubeClient = clientset
-
+		app.KubeClient = kubeClient
 	})
 	return app
 }

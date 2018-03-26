@@ -1,97 +1,65 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
-
-	"github.com/spf13/cobra"
-	"k8s.io/client-go/rest"
-	"github.com/spf13/viper"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/kubernetes"
-	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"github.com/sanity-io/litter"
-	"encoding/json"
 	"io/ioutil"
 	"os"
+	"os/exec"
+
+	"github.com/envoyproxy/go-control-plane/pkg/test/resource"
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/glog"
+	"github.com/shanbay/leizu"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-// testCmd represents the test command
+var (
+	xdsPort       uint
+	ads           bool
+	bootstrapFile string
+	envoyBinary   string
+)
+
 var testCmd = &cobra.Command{
 	Use:   "test",
-	Short: "A brief description of your command",
+	Short: "test leizu",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		var (
-			kubeConfig *rest.Config
-			err        error
-		)
-		kubeConfigPath := viper.GetString("KubeConfigPath")
-		fmt.Printf("using out cluster config: %s", kubeConfigPath)
-		kubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+		kubeClient, err := leizu.SimpleKubeClient(viper.GetViper())
 		if err != nil {
-			panic(err.Error())
+			logrus.WithError(err).Fatalln("get kube client failed")
+		}
+		ns := viper.GetString("namespace")
+		fmt.Print(kubeClient, ns)
+
+		app := leizu.InitApplication(viper.GetViper())
+		go app.Serve()
+
+		// write bootstrap file
+		bootstrap := resource.MakeBootstrap(ads, uint32(xdsPort), 19000)
+		buf := &bytes.Buffer{}
+		if err := (&jsonpb.Marshaler{OrigName: true}).Marshal(buf, bootstrap); err != nil {
+			glog.Fatal(err)
+		}
+		if err := ioutil.WriteFile(bootstrapFile, buf.Bytes(), 0644); err != nil {
+			glog.Fatal(err)
 		}
 
-		clientset, err := kubernetes.NewForConfig(kubeConfig)
-		if err != nil {
-			logrus.Fatalln(err)
-		}
-		ns := "douya"
-		services, err := clientset.CoreV1().Services(ns).List(metav1.ListOptions{})
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		data, err := json.Marshal(services)
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		err = ioutil.WriteFile("services.json", data, os.ModePerm)
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		litter.Dump(services)
-
-		pods, err := clientset.CoreV1().Pods(ns).List(metav1.ListOptions{})
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		data, err = json.Marshal(pods)
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		err = ioutil.WriteFile("pods.json", data, os.ModePerm)
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		litter.Dump(pods)
-
-		endpoints, err := clientset.CoreV1().Endpoints(ns).List(metav1.ListOptions{})
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		data, err = json.Marshal(endpoints)
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		err = ioutil.WriteFile("endpoints.json", data, os.ModePerm)
-		if err != nil {
-			logrus.Warnln(err)
-		}
-		litter.Dump(endpoints)
+		// start envoy
+		envoy := exec.Command("envoy", "-c", bootstrapFile, "--drain-time-s", "1")
+		envoy.Stdout = os.Stdout
+		envoy.Stderr = os.Stderr
+		envoy.Start()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(testCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// testCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// testCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	testCmd.Flags().BoolVar(&ads, "ads", true, "Use ADS instead of separate xDS services")
+	testCmd.Flags().StringVar(&bootstrapFile, "bootstrap", "bootstrap.json", "Bootstrap file name")
+	testCmd.Flags().StringVar(&envoyBinary, "envoy", "envoy", "Envoy binary file")
 }
