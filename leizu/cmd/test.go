@@ -7,13 +7,14 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/envoyproxy/go-control-plane/pkg/test/resource"
+	"github.com/shanbay/leizu/test/resource"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/golang/glog"
 	"github.com/shanbay/leizu"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	k8sApiMetaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -39,7 +40,17 @@ var testCmd = &cobra.Command{
 		go app.Serve()
 
 		// write bootstrap file
-		bootstrap := resource.MakeBootstrap(ads, uint32(xdsPort), 19000)
+		bootstrap := resource.MakeBootstrap(uint32(xdsPort), 19000)
+		services, err := app.KubeClient.CoreV1().Services(ns).List(k8sApiMetaV1.ListOptions{})
+		if err != nil {
+			logrus.Warnln(err)
+		}
+		for _, svc := range services.Items{
+			clusterName := svc.Name + "." + svc.Namespace
+			cluster := resource.MakeCluster(app.Config.GetBool("ads"), clusterName)
+			bootstrap.StaticResources.Clusters = append(bootstrap.StaticResources.Clusters, *cluster)
+		}
+
 		buf := &bytes.Buffer{}
 		if err := (&jsonpb.Marshaler{OrigName: true}).Marshal(buf, bootstrap); err != nil {
 			glog.Fatal(err)

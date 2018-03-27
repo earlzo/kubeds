@@ -46,6 +46,10 @@ func init() {
 
 	rootCmd.PersistentFlags().StringP("address", "a", viper.GetString("grpcServerAddress"), "address for grpc server")
 	viper.BindPFlag("grpcServerAddress", rootCmd.Flags().Lookup("address"))
+
+	// currently we do not support ADS
+	//rootCmd.PersistentFlags().Bool("ads", viper.GetBool("ads"), "Use ADS instead of separate xDS services")
+	//viper.BindPFlag("ads", rootCmd.Flags().Lookup("ads"))
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -48,22 +48,22 @@ func SimpleKubeClient(config *viper.Viper) (*kubernetes.Clientset, error) {
 	)
 	if viper.GetBool("outCluster") {
 		kubeConfigPath := viper.GetString("kubeConfigPath")
-		logrus.WithField("kubeConfigPath", kubeConfigPath).Infoln("using out cluster config")
+		logrus.WithField("kubeConfigPath", kubeConfigPath).Infoln("using out cluster Config")
 		kubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 		if err != nil {
-			logrus.WithError(err).Fatalln("load config failed")
+			logrus.WithError(err).Fatalln("load Config failed")
 		}
 	} else {
 		kubeConfig, err = rest.InClusterConfig()
 		if err != nil {
-			logrus.WithError(err).Fatalln("load config failed")
+			logrus.WithError(err).Fatalln("load Config failed")
 		}
 	}
 	logrus.WithFields(logrus.Fields{
 		"host":      kubeConfig.Host,
 		"username":  kubeConfig.Username,
 		"userAgent": kubeConfig.UserAgent,
-	}).Infoln("k8s config was loaded")
+	}).Infoln("k8s Config was loaded")
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		logrus.WithError(err).Fatalln("make k8s client failed")
@@ -80,14 +80,14 @@ func InitApplication(config *viper.Viper) *Application {
 		app = &Application{
 			logger: logrus.New(),
 			ctx:    context.Background(),
-			config: config,
+			Config: config,
 		}
 		app.logger.Formatter = &logrus.TextFormatter{
 			ForceColors:   true,
 			FullTimestamp: true,
 		}
 		// init snapshotCache
-		app.cache = cache.NewSnapshotCache(true, Hasher{}, app.logger)
+		app.cache = cache.NewSnapshotCache(config.GetBool("ads"), Hasher{}, app.logger)
 		app.server = xds.NewServer(app.cache, nil)
 		app.grpcServer = grpc.NewServer()
 
@@ -105,7 +105,7 @@ func InitApplication(config *viper.Viper) *Application {
 // Application is program entry
 type Application struct {
 	logger     *logrus.Logger
-	config     *viper.Viper
+	Config     *viper.Viper
 	ctx        context.Context
 	cache      cache.SnapshotCache
 	server     xds.Server
@@ -114,7 +114,7 @@ type Application struct {
 }
 
 func (a *Application) RunXds() {
-	addr := a.config.GetString("grpcServerAddress")
+	addr := a.Config.GetString("grpcServerAddress")
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		a.logger.WithError(err).Fatalln("failed to listen")
@@ -128,7 +128,7 @@ func (a *Application) WatchEndpoints() {
 	// watch k8s cluster endpoints, and set set snapshot after changes
 	// 初次监听会返回当前的状态
 	// Endpoints 属于一个资源, 每次更新会带上当前所有的 endpoint, 例如当某个部署副本由 1 调整到 3 则会收到两次 MODIFIED 事件
-	nameSpace := a.config.GetString("nameSpace")
+	nameSpace := a.Config.GetString("nameSpace")
 	endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(k8sApiMetaV1.ListOptions{})
 	if err != nil {
 		a.logger.WithError(err).Fatalln("watch endpoints changes failed")
