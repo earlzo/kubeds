@@ -3,9 +3,10 @@ package cmd
 import (
 	"bytes"
 	"io/ioutil"
-	"github.com/shanbay/leizu/test/resource"
+
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/shanbay/leizu"
+	"github.com/shanbay/leizu/test/resource"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

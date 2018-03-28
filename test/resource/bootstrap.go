@@ -21,7 +21,7 @@ func MakeBootstrap(controlPort, adminPort uint32) *bootstrap.Bootstrap {
 			Address: core.Address{
 				Address: &core.Address_SocketAddress{
 					SocketAddress: &core.SocketAddress{
-						Address: "127.0.0.1",
+						Address: localhost,
 						PortSpecifier: &core.SocketAddress_PortValue{
 							PortValue: adminPort,
 						},
@@ -37,7 +37,7 @@ func MakeBootstrap(controlPort, adminPort uint32) *bootstrap.Bootstrap {
 				Hosts: []*core.Address{{
 					Address: &core.Address_SocketAddress{
 						SocketAddress: &core.SocketAddress{
-							Address: "127.0.0.1",
+							Address: localhost,
 							PortSpecifier: &core.SocketAddress_PortValue{
 								PortValue: controlPort,
 							},
