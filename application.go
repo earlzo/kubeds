@@ -38,6 +38,7 @@ var (
 	app  *Application
 )
 
+// SimpleKubeClient create a *kubernetes.Clientset by using viper config
 func SimpleKubeClient(config *viper.Viper) (*kubernetes.Clientset, error) {
 	if config == nil {
 		config = viper.GetViper()
@@ -72,6 +73,7 @@ func SimpleKubeClient(config *viper.Viper) (*kubernetes.Clientset, error) {
 	return kubeClient, nil
 }
 
+// InitApplication init an application, the program only execute once
 func InitApplication(config *viper.Viper) *Application {
 	once.Do(func() {
 		if config == nil {
@@ -113,6 +115,7 @@ type Application struct {
 	KubeClient *kubernetes.Clientset
 }
 
+// RunXds run xds server
 func (a *Application) RunXds() {
 	xdsPort := a.Config.GetString("xdsPort")
 	lis, err := net.Listen("tcp", ":"+xdsPort)
@@ -124,6 +127,8 @@ func (a *Application) RunXds() {
 		a.logger.WithError(err).Fatalln("serve grpc server failed")
 	}
 }
+
+// WatchEndpoints watch kubernetes endpoint changes
 func (a *Application) WatchEndpoints() {
 	// watch k8s cluster endpoints, and set set snapshot after changes
 	// 初次监听会返回当前的状态
@@ -162,6 +167,7 @@ func (a *Application) WatchEndpoints() {
 	}
 }
 
+// Serve start and block the main process
 func (a *Application) Serve() {
 	go a.RunXds()
 	go a.WatchEndpoints()
@@ -169,6 +175,7 @@ func (a *Application) Serve() {
 	a.grpcServer.GracefulStop()
 }
 
+// Endpoints2ClusterLoadAssignment convert Endpoints to ClusterLoadAssignment
 func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *k8sApiV1Core.Endpoints, healthStatus envoyApiV2Core.HealthStatus) *envoyApiV2.ClusterLoadAssignment {
 	// clusterName format is "svcName.Namespace"
 	clusterName := endpoints.ObjectMeta.Name + "." + endpoints.ObjectMeta.Namespace

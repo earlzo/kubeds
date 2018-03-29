@@ -16,15 +16,17 @@ before_script:
   - echo $CI_BUILD_REF
   - echo $CI_PROJECT_DIR
 
-  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
   - cp -r $CI_PROJECT_DIR/* $GOPATH/src/$REPO_NAME
   - cd $GOPATH/src/$REPO_NAME
+
+  - go get -u golang.org/x/lint/golint
+  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
   - dep ensure -update -v
 
 test:
   stage: test
   script:
-    - go vet
+    - golint -set_exit_status
     - go test
 
 build:

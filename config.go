@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// all config fields
+// LoadDefaultSettingsFor load default config
 func LoadDefaultSettingsFor(v *viper.Viper) {
 	home, err := homedir.Dir()
 	if err != nil {
