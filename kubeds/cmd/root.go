@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/shanbay/leizu"
+	"github.com/shanbay/kubeds"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"k8s.io/client-go/util/homedir"
@@ -14,7 +14,7 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "leizu",
+	Use:   "kubeds",
 	Short: "A envoy api implementation for kubernetes",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -63,9 +63,9 @@ func initConfig() {
 		// Use config file from the flag.
 		viper.SetConfigFile(cfgFile)
 	} else {
-		// Search config in home directory with name ".github.com\shanbay\leizu" (without extension).
+		// Search config in home directory with name ".github.com\shanbay\kubeds" (without extension).
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".leizu.yml")
+		viper.SetConfigName(".kubeds.yml")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match

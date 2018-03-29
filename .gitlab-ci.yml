@@ -1,0 +1,44 @@
+image: golang:1.10
+stages:
+  - test
+  - build
+
+variables:
+  - REPO_NAME:github.com/shanbay/kubeds
+
+# https://docs.gitlab.com/ee/ci/caching/index.html
+cache:
+  paths:
+    - $GOPATH/src/$REPO_NAME/vendor
+
+before_script:
+  - go version
+  - echo $CI_BUILD_REF
+  - echo $CI_PROJECT_DIR
+
+  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+  - cp -r $CI_PROJECT_DIR/* $GOPATH/src/$REPO_NAME
+  - cd $GOPATH/src/$REPO_NAME
+  - dep ensure -update -v
+
+test:
+  stage: test
+  script:
+    - go vet
+    - go test
+
+build:
+  image: "goreleaser/goreleaser:latest"
+  stage: build
+  only:
+    - master
+    - develop
+  tags:
+    - build
+  script:
+    - goreleaser
+  # https://docs.gitlab.com/ee/user/project/pipelines/job_artifacts.html
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week

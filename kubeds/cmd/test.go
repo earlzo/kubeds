@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/shanbay/leizu"
-	"github.com/shanbay/leizu/test/resource"
+	"github.com/shanbay/kubeds"
+	"github.com/shanbay/kubeds/test/resource"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -20,7 +20,7 @@ var (
 
 var testCmd = &cobra.Command{
 	Use:   "test",
-	Short: "test leizu",
+	Short: "test kubeds",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		app := leizu.InitApplication(viper.GetViper())

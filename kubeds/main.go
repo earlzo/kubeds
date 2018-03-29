@@ -1,6 +1,6 @@
 package main
 
-import "github.com/shanbay/leizu/leizu/cmd"
+import "github.com/shanbay/kubeds/kubeds/cmd"
 
 func main() {
 	cmd.Execute()
