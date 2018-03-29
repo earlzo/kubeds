@@ -48,22 +48,22 @@ func SimpleKubeClient(config *viper.Viper) (*kubernetes.Clientset, error) {
 	)
 	if viper.GetBool("outCluster") {
 		kubeConfigPath := viper.GetString("kubeConfigPath")
-		logrus.WithField("kubeConfigPath", kubeConfigPath).Infoln("using out cluster Config")
+		logrus.WithField("kubeConfigPath", kubeConfigPath).Infoln("using out cluster config")
 		kubeConfig, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 		if err != nil {
-			logrus.WithError(err).Fatalln("load Config failed")
+			logrus.WithError(err).Fatalln("load config failed")
 		}
 	} else {
 		kubeConfig, err = rest.InClusterConfig()
 		if err != nil {
-			logrus.WithError(err).Fatalln("load Config failed")
+			logrus.WithError(err).Fatalln("load config failed")
 		}
 	}
 	logrus.WithFields(logrus.Fields{
 		"host":      kubeConfig.Host,
 		"username":  kubeConfig.Username,
 		"userAgent": kubeConfig.UserAgent,
-	}).Infoln("k8s Config was loaded")
+	}).Infoln("k8s config was loaded")
 	kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		logrus.WithError(err).Fatalln("make k8s client failed")
@@ -128,7 +128,7 @@ func (a *Application) WatchEndpoints() {
 	// watch k8s cluster endpoints, and set set snapshot after changes
 	// 初次监听会返回当前的状态
 	// Endpoints 属于一个资源, 每次更新会带上当前所有的 endpoint, 例如当某个部署副本由 1 调整到 3 则会收到两次 MODIFIED 事件
-	nameSpace := a.Config.GetString("nameSpace")
+	nameSpace := a.Config.GetString("namespace")
 	endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(k8sApiMetaV1.ListOptions{})
 	if err != nil {
 		a.logger.WithError(err).Fatalln("watch endpoints changes failed")

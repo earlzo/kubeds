@@ -35,14 +35,14 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().BoolP("out-cluster", "o", viper.GetBool("outCluster"), "using out cluster kubeconfig")
+	rootCmd.PersistentFlags().BoolP("out-cluster", "o", viper.GetBool("outCluster"), "using out cluster kube config")
 	viper.BindPFlag("outCluster", rootCmd.PersistentFlags().Lookup("out-cluster"))
 
-	rootCmd.PersistentFlags().StringP("kubeconfig", "k", viper.GetString("kubeConfigPath"), "absolute path to the kubeconfig file")
-	viper.BindPFlag("kubeConfigPath", rootCmd.PersistentFlags().Lookup("kubeconfig"))
+	rootCmd.PersistentFlags().StringP("kubeConfig", "k", viper.GetString("kubeConfigPath"), "absolute path to the kube config file")
+	viper.BindPFlag("kubeConfigPath", rootCmd.PersistentFlags().Lookup("kubeConfig"))
 
-	rootCmd.PersistentFlags().StringP("namespace", "n", viper.GetString("nameSpace"), "namespace to listen")
-	viper.BindPFlag("nameSpace", rootCmd.PersistentFlags().Lookup("namespace"))
+	rootCmd.PersistentFlags().StringP("namespace", "n", viper.GetString("namespace"), "namespace to listen")
+	viper.BindPFlag("namespace", rootCmd.PersistentFlags().Lookup("namespace"))
 
 	rootCmd.PersistentFlags().StringP("address", "a", viper.GetString("grpcServerAddress"), "address for grpc server")
 	viper.BindPFlag("grpcServerAddress", rootCmd.PersistentFlags().Lookup("address"))

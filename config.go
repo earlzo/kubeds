@@ -9,18 +9,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-// all Config fields
+// all config fields
 func LoadDefaultSettingsFor(v *viper.Viper) {
 	home, err := homedir.Dir()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	defaultKubeConfig := filepath.Join(home, ".kube", "Config")
+	defaultKubeConfig := filepath.Join(home, ".kube", "config")
 
 	v.SetDefault("outCluster", false)
 	v.SetDefault("kubeConfigPath", defaultKubeConfig)
-	v.SetDefault("nameSpace", "")
+	v.SetDefault("namespace", "")
 	v.SetDefault("grpcServerAddress", ":6666")
 	v.SetDefault("ads", false)
 }
