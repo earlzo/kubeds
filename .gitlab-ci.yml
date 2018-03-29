@@ -36,7 +36,7 @@ build:
   tags:
     - build
   script:
-    - goreleaser
+    - goreleaser --rm-dist
   # https://docs.gitlab.com/ee/user/project/pipelines/job_artifacts.html
   artifacts:
     paths:
