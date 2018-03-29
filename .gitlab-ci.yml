@@ -16,6 +16,7 @@ before_script:
   - echo $CI_BUILD_REF
   - echo $CI_PROJECT_DIR
 
+  - mkdir -p $GOPATH/src/$REPO_NAME
   - cp -r $CI_PROJECT_DIR/* $GOPATH/src/$REPO_NAME
   - cd $GOPATH/src/$REPO_NAME
 
