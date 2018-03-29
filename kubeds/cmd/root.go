@@ -44,8 +44,8 @@ func init() {
 	rootCmd.PersistentFlags().StringP("namespace", "n", viper.GetString("namespace"), "namespace to listen")
 	viper.BindPFlag("namespace", rootCmd.PersistentFlags().Lookup("namespace"))
 
-	rootCmd.PersistentFlags().StringP("address", "a", viper.GetString("grpcServerAddress"), "address for grpc server")
-	viper.BindPFlag("grpcServerAddress", rootCmd.PersistentFlags().Lookup("address"))
+	rootCmd.PersistentFlags().Uint16P("xdsPort", "p", uint16(viper.GetInt("xdsPort")), "port for xds")
+	viper.BindPFlag("xdsPort", rootCmd.PersistentFlags().Lookup("xdsPort"))
 
 	// currently we do not support ADS
 	//rootCmd.PersistentFlags().Bool("ads", viper.GetBool("ads"), "Use ADS instead of separate xDS services")

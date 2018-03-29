@@ -14,7 +14,6 @@ import (
 )
 
 var (
-	xdsPort       uint
 	bootstrapFile string
 )
 
@@ -26,7 +25,8 @@ var testCmd = &cobra.Command{
 		app := leizu.InitApplication(viper.GetViper())
 		// write bootstrap file
 		ns := viper.GetString("namespace")
-		bootstrap := resource.MakeBootstrap(uint32(xdsPort), 19000)
+
+		bootstrap := resource.MakeBootstrap(uint32(app.Config.GetInt("xdsPort")), 19000)
 		services, err := app.KubeClient.CoreV1().Services(ns).List(k8sApiMetaV1.ListOptions{})
 		if err != nil {
 			logrus.Warnln(err)

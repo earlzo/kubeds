@@ -114,12 +114,12 @@ type Application struct {
 }
 
 func (a *Application) RunXds() {
-	addr := a.Config.GetString("grpcServerAddress")
-	lis, err := net.Listen("tcp", addr)
+	xdsPort := a.Config.GetString("xdsPort")
+	lis, err := net.Listen("tcp", ":"+xdsPort)
 	if err != nil {
 		a.logger.WithError(err).Fatalln("failed to listen")
 	}
-	a.logger.WithField("grpcServerAddress", addr).Infoln("start listening grpc")
+	a.logger.WithField("xdsPort", xdsPort).Infoln("start listening grpc")
 	if err = a.grpcServer.Serve(lis); err != nil {
 		a.logger.WithError(err).Fatalln("serve grpc server failed")
 	}

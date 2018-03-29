@@ -21,6 +21,6 @@ func LoadDefaultSettingsFor(v *viper.Viper) {
 	v.SetDefault("outCluster", false)
 	v.SetDefault("kubeConfigPath", defaultKubeConfig)
 	v.SetDefault("namespace", "")
-	v.SetDefault("grpcServerAddress", ":6666")
+	v.SetDefault("xdsPort", 6666)
 	v.SetDefault("ads", false)
 }
