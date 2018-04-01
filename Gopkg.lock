@@ -424,7 +424,7 @@
   version = "v2.2.1"
 
 [[projects]]
-  branch = "master"
+  branch = "release-1.8"
   name = "k8s.io/api"
   packages = [
     "admissionregistration/v1alpha1",
@@ -452,7 +452,7 @@
     "storage/v1",
     "storage/v1beta1"
   ]
-  revision = "c4ebf33f93081f8c7602d29a59944e4a9f684ac2"
+  revision = "3c2a58f9923aeb5d27fa4d91249e45a1460ca3bd"
 
 [[projects]]
   branch = "release-1.8"
@@ -557,6 +557,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ac64d198e47f04628b17a1b54ecd451a0caf52c1602c86b371e3ffb5ea6c1a37"
+  inputs-digest = "87b2f2324c1a32e2eac5f54be2e7ea9019aeb0136c8421844db59d1fc76b6123"
   solver-name = "gps-cdcl"
   solver-version = 1

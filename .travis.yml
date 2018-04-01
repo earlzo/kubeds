@@ -1,31 +1,32 @@
 # .travis.yml
 language: go
-
-addons:
-  apt:
-    packages:
-    # needed for the nfpm pipe:
-    - rpm
-    # needed for the snap pipe:
-    - snapcraft
-
-env:
-# needed for the snap pipe:
-- PATH=/snap/bin:$PATH
+go_import_path: github.com/shanbay/kubeds
+cache:
+  directories:
+    - $GOPATH/github.com/shanbay/kubeds/vendor
 
 install:
-# needed for the snap pipe:
-- sudo snap install snapcraft --classic
+  - go get -u golang.org/x/lint/golint
+  - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+  - dep ensure -update -v
 
-# needed for the docker pipe
 services:
-- docker
+  - docker
 
-# calls goreleaser
-deploy:
-- provider: script
-  skip_cleanup: true
-  script: curl -sL http://git.io/goreleaser | bash
-  on:
-    tags: true
-    condition: $TRAVIS_OS_NAME = linux
+stages:
+  - lint
+  - test
+  - deploy
+
+jobs:
+  include:
+    - stage: lint
+      script: golint -set_exit_status
+    - stage: test
+      script: go test
+    - stage: deploy
+      skip_cleanup: true
+      script: curl -sL http://git.io/goreleaser | bash
+      on:
+        tags: true
+        condition: $TRAVIS_OS_NAME = linux
