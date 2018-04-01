@@ -1,9 +1,14 @@
 # .travis.yml
 language: go
+go:
+  - master
 go_import_path: github.com/shanbay/kubeds
 cache:
   directories:
     - $GOPATH/github.com/shanbay/kubeds/vendor
+
+install: skip
+script: skip
 
 stages:
   - lint
