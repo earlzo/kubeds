@@ -8,6 +8,8 @@ set -o pipefail
 ## This is a wrapper around the test app `pkg/test/main` that spawns/kills Envoy.
 ##
 
+# FIXME: params
+# minikube support
 # Management server type. Valid values are "ads", "xds", "rest"
 XDS=${XDS:-ads}
 

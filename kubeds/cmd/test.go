@@ -1,10 +1,6 @@
 package cmd
 
 import (
-	"bytes"
-	"io/ioutil"
-
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/shanbay/kubeds"
 	"github.com/shanbay/kubeds/test/resource"
 	"github.com/sirupsen/logrus"
@@ -36,22 +32,11 @@ var testCmd = &cobra.Command{
 			cluster := resource.MakeCluster(app.Config.GetBool("ads"), clusterName)
 			bootstrap.StaticResources.Clusters = append(bootstrap.StaticResources.Clusters, *cluster)
 		}
-
-		buf := &bytes.Buffer{}
-		if err := (&jsonpb.Marshaler{OrigName: true}).Marshal(buf, bootstrap); err != nil {
-			logrus.WithError(err).Fatalln("marshal bootstrap file failed")
-		}
-		if err := ioutil.WriteFile(bootstrapFile, buf.Bytes(), 0644); err != nil {
-			logrus.WithError(err).Fatalln("write bootstrap file failed")
-		}
 		logrus.WithField("path", bootstrapFile).Infoln("please start envoy with bootstrap file")
-
 		app.Serve()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(testCmd)
-
-	testCmd.Flags().StringVar(&bootstrapFile, "bootstrap", "bootstrap.json", "Bootstrap file name")
 }
