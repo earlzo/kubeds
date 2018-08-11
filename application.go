@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"sync"
-
 	envoyApiV2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	envoyApiV2Core "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
@@ -90,8 +89,20 @@ func InitApplication(config *viper.Viper) *Application {
 		}
 		// init snapshotCache
 		app.cache = cache.NewSnapshotCache(config.GetBool("ads"), Hasher{}, app.logger)
+		snapShot := cache.NewSnapshot(
+			"0",
+			[]cache.Resource{},
+			[]cache.Resource{},
+			[]cache.Resource{},
+			[]cache.Resource{},
+		)
+
+		if err := app.cache.SetSnapshot(nodeID, snapShot); err != nil {
+			app.logger.WithError(err).Errorln("Init snapshot failed ")
+		}
 		app.server = xds.NewServer(app.cache, nil)
 		app.grpcServer = grpc.NewServer()
+		app.snapshot = make(map[string]envoyApiV2.ClusterLoadAssignment)
 
 		envoyApiV2.RegisterEndpointDiscoveryServiceServer(app.grpcServer, app.server)
 
@@ -113,6 +124,7 @@ type Application struct {
 	server     xds.Server
 	grpcServer *grpc.Server
 	KubeClient *kubernetes.Clientset
+	snapshot   map[string]envoyApiV2.ClusterLoadAssignment
 }
 
 // RunXds run xds server
@@ -134,36 +146,46 @@ func (a *Application) WatchEndpoints() {
 	// 初次监听会返回当前的状态
 	// Endpoints 属于一个资源, 每次更新会带上当前所有的 endpoint, 例如当某个部署副本由 1 调整到 3 则会收到两次 MODIFIED 事件
 	nameSpace := a.Config.GetString("namespace")
-	endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(k8sApiMetaV1.ListOptions{})
-	if err != nil {
-		a.logger.WithError(err).Fatalln("watch endpoints changes failed")
-	}
-	a.logger.Infoln("start watching Endpoints events")
-	for event := range endWatcher.ResultChan() {
-		a.logger.WithField("event", event.Type).Infoln("endpoints event received")
-		var healthStatus envoyApiV2Core.HealthStatus
-		switch event.Type {
-		case watch.Added, watch.Modified:
-			healthStatus = envoyApiV2Core.HealthStatus_HEALTHY
-		case watch.Deleted, watch.Error:
-			healthStatus = envoyApiV2Core.HealthStatus_UNHEALTHY
-		default:
-			healthStatus = envoyApiV2Core.HealthStatus_UNKNOWN
+	for {
+		endWatcher, err := a.KubeClient.CoreV1().Endpoints(nameSpace).Watch(k8sApiMetaV1.ListOptions{})
+		if err != nil {
+			a.logger.WithError(err).Fatalln("watch endpoints changes failed")
 		}
-		endpoints := event.Object.(*k8sApiV1Core.Endpoints)
-		envoyEndpoints := a.Endpoints2ClusterLoadAssignment(endpoints, healthStatus)
-		snapShot := cache.NewSnapshot(
-			endpoints.ResourceVersion,
-			[]cache.Resource{envoyEndpoints},
-			[]cache.Resource{},
-			[]cache.Resource{},
-			[]cache.Resource{},
-		)
-		// TODO: dispatch Node
-		if err := a.cache.SetSnapshot(nodeID, snapShot); err != nil {
-			a.logger.WithError(err).Errorln("SetSnapshot failed ")
+		a.logger.Infoln("start watching Endpoints events")
+		for event := range endWatcher.ResultChan() {
+			a.logger.WithField("event", event.Type).Infoln("endpoints event received")
+			var healthStatus envoyApiV2Core.HealthStatus
+			switch event.Type {
+			case watch.Added, watch.Modified:
+				healthStatus = envoyApiV2Core.HealthStatus_HEALTHY
+			case watch.Deleted, watch.Error:
+				healthStatus = envoyApiV2Core.HealthStatus_UNHEALTHY
+			default:
+				healthStatus = envoyApiV2Core.HealthStatus_UNKNOWN
+			}
+			endpoints := event.Object.(*k8sApiV1Core.Endpoints)
+			clusterName := getClusterNameByEndpoints(endpoints)
+			envoyEndpoints := a.Endpoints2ClusterLoadAssignment(endpoints, healthStatus)
+			a.snapshot[clusterName] = *envoyEndpoints
+			var resources []cache.Resource
+			for k := range a.snapshot {
+				tmp := a.snapshot[k]
+				resources = append(resources, &tmp)
+			}
+			snapShot := cache.NewSnapshot(
+				endpoints.ResourceVersion,
+				resources,
+				[]cache.Resource{},
+				[]cache.Resource{},
+				[]cache.Resource{},
+			)
+			// TODO: dispatch Node
+			if err := a.cache.SetSnapshot(nodeID, snapShot); err != nil {
+				a.logger.WithError(err).Errorln("SetSnapshot failed ")
+			}
+			a.logger.WithField("version", endpoints.ResourceVersion).Infoln("set new snapshot")
 		}
-		a.logger.WithField("version", endpoints.ResourceVersion).Infoln("set new snapshot")
+		a.logger.Infoln("watcher exited!")
 	}
 }
 
@@ -178,7 +200,7 @@ func (a *Application) Serve() {
 // Endpoints2ClusterLoadAssignment convert Endpoints to ClusterLoadAssignment
 func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *k8sApiV1Core.Endpoints, healthStatus envoyApiV2Core.HealthStatus) *envoyApiV2.ClusterLoadAssignment {
 	// clusterName format is "svcName.Namespace"
-	clusterName := endpoints.ObjectMeta.Name + "." + endpoints.ObjectMeta.Namespace
+	clusterName := getClusterNameByEndpoints(endpoints)
 
 	lbEndpoints := make([]endpoint.LbEndpoint, 0)
 	for _, subset := range endpoints.Subsets {
@@ -222,4 +244,8 @@ func (a *Application) Endpoints2ClusterLoadAssignment(endpoints *k8sApiV1Core.En
 			LbEndpoints: lbEndpoints,
 		}},
 	}
+}
+
+func getClusterNameByEndpoints(endpoints *k8sApiV1Core.Endpoints) string {
+	return endpoints.ObjectMeta.Name + "." + endpoints.ObjectMeta.Namespace
 }
